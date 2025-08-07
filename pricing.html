@@ -5,6 +5,14 @@
     <meta charset="UTF-8">
     <title>Pricing - FocusFlow</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-M0YQJ9P8VT"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-M0YQJ9P8VT');
+    </script>
 </head>
 <body>
     <header>
@@ -17,16 +25,26 @@
     </header>
     <main>
         <h2>Choose Your Plan</h2>
-        <div class="plan">
-            <h3>Free</h3>
-            <p>$0/month</p>
-            <p>Basic features</p>
-        </div>
-        <div class="plan">
-            <h3>Pro</h3>
-            <p>$9.99/month</p>
-            <p>Advanced focus analytics and custom reports</p>
-            <button>Sign Up</button>
+        <div class="pricing-grid">
+            <div class="plan">
+                <h3>Free</h3>
+                <p class="price">$0/month</p>
+                <ul>
+                    <li>Task timer</li>
+                    <li>Basic analytics</li>
+                    <li>3 project boards</li>
+                </ul>
+            </div>
+            <div class="plan featured">
+                <h3>Pro</h3>
+                <p class="price">$9.99/month</p>
+                <ul>
+                    <li>Unlimited boards</li>
+                    <li>Advanced focus insights</li>
+                    <li>Exportable reports</li>
+                </ul>
+                <button class="signup-btn">Sign Up for Pro</button>
+            </div>
         </div>
     </main>
     <footer>
