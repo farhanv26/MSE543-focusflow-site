@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlowForge – Smart Workflow Automation</title>
+  <meta name="description" content="AI-assisted workflow automation. Build, run, and monitor automations." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="app-header">
+    <div class="app-header-inner">
+      <a href="#/dashboard" class="logo">
+        <span class="logo-icon" aria-hidden="true">◇</span>
+        <span>FlowForge</span>
+      </a>
+      <nav class="app-nav" aria-label="Primary">
+        <a href="#/dashboard" data-route="dashboard">Dashboard</a>
+        <a href="#/automations" data-route="automations">Automations</a>
+        <a href="#/builder" data-route="builder">Builder</a>
+        <a href="#/runs" data-route="runs">Runs</a>
+        <a href="#/templates" data-route="templates">Templates</a>
+        <a href="#/case-study" data-route="case-study">Case Study</a>
+        <a href="#/settings" data-route="settings">Settings</a>
+      </nav>
+      <span id="header-demo-area"></span>
+      <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <nav class="sidebar-nav" aria-label="App sections">
+        <a href="#/dashboard" data-route="dashboard"><span class="nav-icon">◉</span> Dashboard</a>
+        <a href="#/automations" data-route="automations"><span class="nav-icon">⚙</span> Automations</a>
+        <a href="#/builder" data-route="builder"><span class="nav-icon">⊕</span> Builder</a>
+        <a href="#/runs" data-route="runs"><span class="nav-icon">▸</span> Runs</a>
+        <a href="#/templates" data-route="templates"><span class="nav-icon">◇</span> Templates</a>
+        <a href="#/case-study" data-route="case-study"><span class="nav-icon">▢</span> Case Study</a>
+        <a href="#/settings" data-route="settings"><span class="nav-icon">⋮</span> Settings</a>
+      </nav>
+    </aside>
+
+    <main id="main" class="app-main" role="main">
+      <div id="page" class="page"></div>
+    </main>
+  </div>
+
+  <div id="toast-root"></div>
+
+  <script src="storage.js"></script>
+  <script src="ai.js"></script>
+  <script src="components.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
