@@ -117,6 +117,7 @@
       email: 'demo@example.com',
       notifications: true,
       privacyShareAnalytics: false,
+      privacy: false,
       tone: 'professional',
       riskLevel: 'low',
       maskPIIInLogs: false,
@@ -127,6 +128,7 @@
     if (user.riskLevel === undefined) user.riskLevel = defaults.riskLevel;
     if (user.maskPIIInLogs === undefined) user.maskPIIInLogs = defaults.maskPIIInLogs;
     if (user.demoMode === undefined) user.demoMode = defaults.demoMode;
+    if (user.privacy === undefined) user.privacy = user.privacyShareAnalytics !== undefined ? user.privacyShareAnalytics : defaults.privacy;
     return user;
   }
 
@@ -179,31 +181,35 @@
     };
     set(KEYS.automations, [a1, a2]);
 
-    // Seed a few sample runs so dashboard isn't empty
+    // Seed sample runs (stepTrace shape for new spec; stepsExecuted kept for backward compat)
     var runs = getRuns();
-    if (runs.length === 0 && typeof global.FlowForgeAI !== 'undefined') {
+    if (runs.length === 0) {
       addRun({
         automationId: a1.id,
         automationName: a1.name,
         status: 'success',
-        stepsExecuted: [
-          { step: 'trigger', result: 'Schedule fired', aiOutput: null },
-          { step: 'condition', result: 'has_attendees = true', aiOutput: null },
-          { step: 'action', result: 'Email sent', aiOutput: { summary: 'Meeting summary sent to 3 attendees.' } },
-        ],
+        triggerType: 'schedule',
         durationMs: 420,
+        payloadUsed: {},
+        stepTrace: [
+          { stepType: 'trigger', label: 'Schedule fired', input: null, output: 'OK', aiOutput: null },
+          { stepType: 'condition', label: 'has_attendees = true', input: 'true', output: 'match', aiOutput: null },
+          { stepType: 'action', label: 'Send email', input: null, output: 'sent', aiOutput: { summary: 'Meeting summary sent to 3 attendees.' } },
+        ],
       });
       addRun({
         automationId: a2.id,
         automationName: a2.name,
         status: 'success',
-        stepsExecuted: [
-          { step: 'trigger', result: 'Email received', aiOutput: null },
-          { step: 'condition', result: 'subject contains "help"', aiOutput: null },
-          { step: 'action', result: 'Classified', aiOutput: { classification: 'Support', confidence: 0.92 } },
-          { step: 'action', result: 'Reply generated', aiOutput: { preview: 'Thank you for reaching out. We will look into this...' } },
-        ],
+        triggerType: 'email_received',
         durationMs: 890,
+        payloadUsed: {},
+        stepTrace: [
+          { stepType: 'trigger', label: 'Email received', input: null, output: 'OK', aiOutput: null },
+          { stepType: 'condition', label: 'subject contains "help"', input: null, output: 'match', aiOutput: null },
+          { stepType: 'action', label: 'Classify request', input: null, output: 'done', aiOutput: { classification: 'Support', confidence: 0.92 } },
+          { stepType: 'action', label: 'Generate reply', input: null, output: 'done', aiOutput: { preview: 'Thank you for reaching out. We will look into this...' } },
+        ],
       });
     }
   }

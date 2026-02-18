@@ -569,6 +569,7 @@ body {
 .toast-success { background: var(--success); }
 .toast-info { background: var(--accent); }
 .toast-warning { background: var(--warning); }
+.toast-error { background: var(--error); }
 
 /* ----- Command palette ----- */
 .palette-overlay .palette-modal {

@@ -138,7 +138,7 @@
     var runsToday = runs.filter(function (r) { return new Date(r.timestamp).toDateString() === today; }).length;
     var successCount = runs.filter(function (r) { return r.status === 'success'; }).length;
     var successRate = runs.length ? Math.round((successCount / runs.length) * 100) : 100;
-    var timeSavedEst = runs.length * 2; // 2 min per run estimate
+    var timeSavedEst = successCount * 5; // 3–7 min per successful run (use 5 as estimate)
 
     var insights = AI.getDashboardInsights(automations, runs);
     var insightsHtml = insights.map(function (i) {
@@ -563,24 +563,28 @@
       automation.actions = getActions();
       var user = Storage.getUser();
       var payload = getTestPayload();
-      var options = { tone: user.tone, riskLevel: user.riskLevel, maskPII: user.maskPIIInLogs };
+      var options = { tone: user.tone, riskLevel: user.riskLevel, maskPII: user.maskPIIInLogs, maskPIIInLogs: user.maskPIIInLogs };
       var result = AI.simulateRun(automation, payload, options);
       var runRecord = {
         automationId: automation.id,
         automationName: automation.name,
         status: result.status,
-        stepsExecuted: result.stepsExecuted,
         durationMs: result.durationMs,
+        triggerType: (automation.trigger && automation.trigger.type) || 'email_received',
+        payloadUsed: payload,
+        stepTrace: result.stepTrace || [],
       };
-      if (user.maskPIIInLogs && runRecord.stepsExecuted) {
-        runRecord.stepsExecuted = runRecord.stepsExecuted.map(function (s) {
-          if (s.aiOutput) s.aiOutput = AI.maskPIIInObject(s.aiOutput);
-          return s;
-        });
-      }
       Storage.addRun(runRecord);
       UI.toast('Test run completed. View in Runs.', 'success');
       navigate('runs');
+    });
+  }
+
+  function getRunStepTrace(run) {
+    if (run.stepTrace && run.stepTrace.length) return run.stepTrace;
+    var legacy = run.stepsExecuted || [];
+    return legacy.map(function (s) {
+      return { stepType: s.step || 'action', label: s.result || '', input: null, output: s.result || '', aiOutput: s.aiOutput != null ? s.aiOutput : null };
     });
   }
 
@@ -591,16 +595,18 @@
     var html =
       '<div class="page-head"><h1>Runs</h1><p class="page-desc">Activity log of automation executions.</p></div>' +
       '<div class="runs-table-wrap">' +
-      '<table class="runs-table"><thead><tr><th>Status</th><th>Automation</th><th>Time</th><th>Duration</th><th></th></tr></thead><tbody>' +
-      (runs.length === 0 ? '<tr><td colspan="5" class="empty-cell">No runs yet. Run an automation from the Builder (Test automation).</td></tr>' :
+      '<table class="runs-table"><thead><tr><th>Status</th><th>Automation</th><th>Time</th><th>Duration</th><th>Trigger</th><th></th></tr></thead><tbody>' +
+      (runs.length === 0 ? '<tr><td colspan="6" class="empty-cell">No runs yet. Run an automation from the Builder (Test automation).</td></tr>' :
         runs.map(function (r) {
           var time = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+          var triggerLabel = (r.triggerType || '').replace(/_/g, ' ') || '—';
           var badgeClass = r.status === 'success' || r.status === 'active' ? 'success' : r.status === 'failed' ? 'error' : 'muted';
           return '<tr data-run-id="' + UI.escapeHtml(r.runId) + '">' +
             '<td><span class="badge badge-' + badgeClass + '">' + (r.status || '—') + '</span></td>' +
             '<td>' + UI.escapeHtml(r.automationName || '—') + '</td>' +
             '<td>' + time + '</td>' +
             '<td>' + (r.durationMs != null ? r.durationMs + ' ms' : '—') + '</td>' +
+            '<td>' + UI.escapeHtml(triggerLabel) + '</td>' +
             '<td><button type="button" class="btn btn-sm btn-secondary btn-view-run">View details</button></td></tr>';
         }).join('')) +
       '</tbody></table></div>';
@@ -613,9 +619,10 @@
         var runId = row.getAttribute('data-run-id');
         var run = runs.find(function (r) { return r.runId === runId; });
         if (!run) return;
-        var stepsHtml = (run.stepsExecuted || []).map(function (s) {
+        var steps = getRunStepTrace(run);
+        var stepsHtml = steps.map(function (s) {
           var ai = s.aiOutput ? '<pre class="run-detail-ai">' + UI.escapeHtml(JSON.stringify(s.aiOutput, null, 2)) + '</pre>' : '';
-          return '<div class="run-detail-step"><strong>' + UI.escapeHtml(s.step) + '</strong>: ' + UI.escapeHtml(s.result) + ai + '</div>';
+          return '<div class="run-detail-step"><strong>' + UI.escapeHtml(s.stepType) + '</strong>: ' + UI.escapeHtml(s.label) + ai + '</div>';
         }).join('');
         var body = document.createElement('div');
         body.className = 'run-detail-body';
@@ -645,6 +652,7 @@
           });
         });
         body.querySelector('#run-export-report').addEventListener('click', function () {
+          var steps = getRunStepTrace(run);
           var lines = [];
           lines.push('FlowForge Run Report');
           lines.push('==================');
@@ -652,10 +660,11 @@
           lines.push('Timestamp: ' + (run.timestamp || '—'));
           lines.push('Status: ' + (run.status || '—'));
           lines.push('Duration: ' + (run.durationMs != null ? run.durationMs + ' ms' : '—'));
+          lines.push('Trigger: ' + (run.triggerType || '—'));
           lines.push('');
           lines.push('Step trace:');
-          (run.stepsExecuted || []).forEach(function (s) {
-            lines.push('  - ' + s.step + ': ' + s.result);
+          steps.forEach(function (s) {
+            lines.push('  - ' + s.stepType + ': ' + s.label);
             if (s.aiOutput) lines.push('    AI: ' + JSON.stringify(s.aiOutput));
           });
           var txt = lines.join('\n');
@@ -724,7 +733,7 @@
       var totalRuns = runs.length;
       var successCount = runs.filter(function (r) { return r.status === 'success'; }).length;
       var successRate = totalRuns ? Math.round((successCount / totalRuns) * 100) : 100;
-      var estMins = totalRuns * 2;
+      var estMins = successCount * 5;
       var feedbackUp = runs.filter(function (r) { return r.feedback === 'up'; }).length;
       var feedbackDown = runs.filter(function (r) { return r.feedback === 'down'; }).length;
       var flagCount = runs.filter(function (r) { return r.feedback === 'flag'; }).length;
@@ -879,8 +888,8 @@
         { label: 'Go Automations', keywords: 'automations list', action: function () { navigate('automations'); } },
         { label: 'Go Builder', keywords: 'builder create', action: function () { navigate('builder'); } },
         { label: 'Go Runs', keywords: 'runs activity log', action: function () { navigate('runs'); } },
+        { label: 'Go Templates', keywords: 'templates import', action: function () { navigate('templates'); } },
         { label: 'Go Case Study', keywords: 'case study', action: function () { navigate('case-study'); } },
-        { label: 'Import Template', keywords: 'templates import', action: function () { navigate('templates'); } },
         { label: 'Toggle Mask PII', keywords: 'pii mask privacy', action: function () {
           user.maskPIIInLogs = !user.maskPIIInLogs;
           Storage.saveUser(user);
@@ -891,6 +900,14 @@
           Storage.saveUser(user);
           updateDemoButton();
           UI.toast('Demo mode ' + (user.demoMode ? 'on' : 'off') + '.', 'info');
+        } },
+        { label: 'Reset Demo Data', keywords: 'reset clear seed', action: function () {
+          if (confirm('Reset all automations and runs? You will get 2 sample automations again.')) {
+            Storage.resetDemoData();
+            updateDemoButton();
+            UI.toast('Demo data reset.', 'success');
+            navigate('dashboard');
+          }
         } },
       ],
     });

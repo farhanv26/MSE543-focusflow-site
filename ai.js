@@ -70,7 +70,8 @@
     ],
   };
 
-  function suggestNextStep(triggerType, existingConditions, existingActions) {
+  function suggestNextStep(triggerType, existingConditions, existingActions, options) {
+    options = options || {};
     var list = TRIGGER_TO_SUGGESTIONS[triggerType] || TRIGGER_TO_SUGGESTIONS.email_received;
     var available = list.filter(function (s) {
       if (s.type === 'condition') return existingConditions.length < 5;
@@ -124,7 +125,8 @@
   // --- Classify request: Billing / Scheduling / Complaint / General ---
   var CLASSES = ['Billing', 'Scheduling', 'Complaint', 'General'];
 
-  function classifyRequest(text) {
+  function classifyRequest(text, options) {
+    options = options || {};
     text = (text || '').toLowerCase();
     var scores = {
       Billing: (text.match(/\b(bill|invoice|payment|charge|refund|subscription)\b/g) || []).length,
@@ -154,7 +156,8 @@
     'Any specific deadline or SLA to meet?',
   ];
 
-  function summarizeText(text) {
+  function summarizeText(text, options) {
+    options = options || {};
     var bullets = pick(BULLET_TEMPLATES);
     var followUp = pick(FOLLOWUP_TEMPLATES);
     return {
@@ -212,66 +215,54 @@
   }
 
   // --- Simulate run: execute automation steps and return run record ---
-  // mockInput (payload): email: from, subject, body; schedule: dateTime, timezone; form: formName, responses (JSON); purchase: vendor, amount, items, notes
-  // options: tone, riskLevel, maskPII (apply to aiOutput before return if true)
-  function simulateRun(automation, mockInput, options) {
-    mockInput = mockInput || {};
+  // payload (mockInput): email: from, subject, body; schedule: dateTime, timezone; form: formName, responses; purchase: vendor, amount, items, notes
+  // options: tone, riskLevel, maskPII, maskPIIInLogs (apply to aiOutput before return if true)
+  function simulateRun(automation, payload, options) {
+    payload = payload || {};
     options = options || {};
-    var stepsExecuted = [];
+    var maskOutput = options.maskPII === true || options.maskPIIInLogs === true;
+    var stepTrace = [];
     var start = Date.now();
     var triggerType = (automation.trigger && automation.trigger.type) || 'email_received';
 
-    var emailBody = mockInput.body || mockInput.emailBody || mockInput.text || 'Customer inquiry about service.';
-    var textForAI = mockInput.body || mockInput.emailBody || mockInput.text || (mockInput.responses && typeof mockInput.responses === 'string' ? mockInput.responses : JSON.stringify(mockInput.responses || {})) || (mockInput.notes || '') || 'Sample content.';
+    var emailBody = payload.body || payload.emailBody || payload.text || 'Customer inquiry about service.';
+    var textForAI = payload.body || payload.emailBody || payload.text || (payload.responses && typeof payload.responses === 'string' ? payload.responses : JSON.stringify(payload.responses || {})) || (payload.notes || '') || 'Sample content.';
 
-    stepsExecuted.push({
-      step: 'trigger',
-      result: 'Trigger fired: ' + (triggerType === 'schedule' ? (mockInput.dateTime || 'scheduled') : triggerType === 'email_received' ? (mockInput.subject || 'email') : triggerType === 'form_submitted' ? (mockInput.formName || 'form') : triggerType === 'purchase_made' ? (mockInput.vendor || 'purchase') : 'event'),
-      aiOutput: null,
-    });
+    var triggerLabel = triggerType === 'schedule' ? (payload.dateTime || 'scheduled') : triggerType === 'email_received' ? (payload.subject || 'email') : triggerType === 'form_submitted' ? (payload.formName || 'form') : triggerType === 'purchase_made' ? (payload.vendor || 'purchase') : 'event';
+    stepTrace.push({ stepType: 'trigger', label: 'Trigger: ' + triggerLabel, input: payload, output: 'fired', aiOutput: null });
 
     (automation.conditions || []).forEach(function (c) {
-      stepsExecuted.push({
-        step: 'condition',
-        result: c.field + ' ' + c.operator + ' ' + c.value,
-        aiOutput: null,
-      });
+      var label = c.field + ' ' + c.operator + ' ' + c.value;
+      stepTrace.push({ stepType: 'condition', label: label, input: c.value, output: 'match', aiOutput: null });
     });
 
-    var actionOpts = { tone: options.tone || 'professional' };
+    var tone = options.tone || 'professional';
     (automation.actions || []).forEach(function (a) {
       var aiOutput = null;
       var config = a.config || {};
-      var tone = config.tone || options.tone || 'professional';
+      var actionTone = config.tone || tone;
       if (a.type === 'classify_request') {
-        aiOutput = classifyRequest(textForAI);
+        aiOutput = classifyRequest(textForAI, options);
       } else if (a.type === 'generate_reply') {
-        aiOutput = generateReply(emailBody, { tone: tone });
+        aiOutput = generateReply(emailBody, { tone: actionTone, riskLevel: options.riskLevel });
       } else if (a.type === 'summarize_text') {
-        aiOutput = summarizeText(textForAI);
+        aiOutput = summarizeText(textForAI, options);
       } else if (a.type === 'send_email') {
         aiOutput = { sent: true, to: config.to || 'recipient', template: config.template || 'default' };
       } else if (a.type === 'create_task') {
         aiOutput = { created: true, title: config.title || 'Task', priority: config.priority || 'medium' };
       } else if (a.type === 'log_expense') {
-        aiOutput = { logged: true, category: config.category || 'general', amount: mockInput.amount, vendor: mockInput.vendor };
+        aiOutput = { logged: true, category: config.category || 'general', amount: payload.amount, vendor: payload.vendor };
       }
-      if (options.maskPII && aiOutput != null) {
-        aiOutput = maskPIIInObject(aiOutput);
-      }
-      stepsExecuted.push({
-        step: 'action',
-        actionType: a.type,
-        result: a.type.replace(/_/g, ' ') + ' completed',
-        aiOutput: aiOutput,
-      });
+      if (maskOutput && aiOutput != null) aiOutput = maskPIIInObject(aiOutput);
+      stepTrace.push({ stepType: 'action', label: a.type.replace(/_/g, ' '), input: null, output: 'done', aiOutput: aiOutput });
     });
 
     var durationMs = Date.now() - start;
     return {
       status: 'success',
-      stepsExecuted: stepsExecuted,
       durationMs: durationMs,
+      stepTrace: stepTrace,
     };
   }
 
@@ -284,7 +275,7 @@
     var totalRuns = runs.length;
     var successRuns = runs.filter(function (r) { return r.status === 'success'; }).length;
     var successRate = totalRuns > 0 ? Math.round((successRuns / totalRuns) * 100) : 100;
-    var estMins = totalRuns * 2;
+    var estMins = successRuns * 5; // 3–7 min per successful run
     var feedbackUp = runs.filter(function (r) { return r.feedback === 'up'; }).length;
     var feedbackDown = runs.filter(function (r) { return r.feedback === 'down'; }).length;
     var flags = runs.filter(function (r) { return r.feedback === 'flag'; }).length;
