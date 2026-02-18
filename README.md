@@ -4,8 +4,8 @@ A **consumer-facing web app** that demonstrates AI-assisted process automation. 
 
 ## How to run
 
-1. **Open directly in the browser**  
-   Open `index.html` in Chrome, Firefox, or Safari.  
+1. **Open directly in the browser**
+   Open `index.html` in Chrome, Fireefox, or Safari.  
    Routes use the hash: e.g. `file:///path/to/index.html#/dashboard`.
 
 2. **Local server (recommended)**  
